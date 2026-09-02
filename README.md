@@ -15,6 +15,22 @@ without clicking through 55 flows.
 
 Requires Node 18 or newer (uses the built-in `fetch`). No dependencies.
 
+### How it works
+
+The tool talks to the integrator.io REST API using a bearer token you supply
+through the environment. Given an integration (by name or by id) it:
+
+1. Resolves the integration, failing if the name is ambiguous.
+2. Lists every flow in the account and keeps those whose `_integrationId`
+   matches, then prints them.
+3. Stops there unless `--confirm` is passed, so the default run is read-only.
+4. Deletes the flows in small parallel batches, retrying `429` and `5xx`.
+5. Deletes the integration itself, but only with `--delete-integration` and
+   only if every flow was removed first.
+
+Typical use is the edit-install-test loop on a template: tear the install down
+with this, re-upload the template zip, and verify the fresh install.
+
 ### Setup
 
 Generate a token in integrator.io under **Resources > API Tokens**, then export it.
@@ -49,6 +65,31 @@ Target by id instead of name when several integrations share a name:
 
 ```bash
 node delete-all-flows.js --integration-id 6a4f62c335f58cd73c4ac478 --confirm
+```
+
+### Full teardown in one command
+
+Set `CELIGO_API_BASE_URL` to the stack you actually log into. A token minted on
+a non-production stack is rejected with `401 Bearer Authentication Failed` if it
+is sent to the production default, which looks like a bad token but is not.
+
+```bash
+cd /Users/sarveshkumar/Documents/IA_Templates/local-tools
+CELIGO_API_TOKEN=<your_api_token> \
+CELIGO_API_BASE_URL=https://api.iaqa.staging.integrator.io \
+node delete-all-flows.js --integration-name "Salesforce - NetSuite (Advanced)" --confirm --delete-integration
+```
+
+That deletes every flow in the integration and then the integration itself.
+Drop `--confirm --delete-integration` to preview the flow list first.
+
+Prefixing the variables applies them to that one command. To set them for the
+whole terminal session instead, export them once and then run only the
+`node ...` line:
+
+```bash
+export CELIGO_API_TOKEN=<your_api_token>
+export CELIGO_API_BASE_URL=https://api.iaqa.staging.integrator.io
 ```
 
 ### Options
