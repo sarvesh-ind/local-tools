@@ -132,8 +132,13 @@ function isRetryable (status) {
   return status === 429 || status >= 500
 }
 
+/* An integration that owns an alias cannot be deleted, so the list is emptied
+   first. JSON-patch touches only `aliases`; a full PUT would discard
+   platform-generated state such as installSteps. */
+const CLEAR_ALIASES_PATCH = [{ op: 'replace', path: '/aliases', value: [] }]
+
 function createClient (config) {
-  async function request (method, path) {
+  async function request (method, path, body) {
     let lastError
 
     for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
@@ -143,6 +148,7 @@ function createClient (config) {
           Authorization: `Bearer ${config.apiToken}`,
           'Content-Type': 'application/json'
         },
+        body: body === undefined ? undefined : JSON.stringify(body),
         signal: AbortSignal.timeout(config.requestTimeoutMs)
       })
 
@@ -164,6 +170,7 @@ function createClient (config) {
     listFlows: () => request('GET', '/v1/flows'),
     listIntegrations: () => request('GET', '/v1/integrations'),
     deleteFlow: (id) => request('DELETE', `/v1/flows/${id}`),
+    clearAliases: (id) => request('PATCH', `/v1/integrations/${id}`, CLEAR_ALIASES_PATCH),
     deleteIntegration: (id) => request('DELETE', `/v1/integrations/${id}`)
   }
 }
@@ -265,6 +272,8 @@ async function main (argv, env) {
     return 1
   }
   if (args.deleteIntegration) {
+    await client.clearAliases(integration._id)
+    logger.info(`logName=integrationAliasesCleared, _integrationId=${integration._id}`)
     await client.deleteIntegration(integration._id)
     logger.info(`logName=integrationDeleted, _integrationId=${integration._id}`)
   }

@@ -25,8 +25,17 @@ through the environment. Given an integration (by name or by id) it:
    matches, then prints them.
 3. Stops there unless `--confirm` is passed, so the default run is read-only.
 4. Deletes the flows in small parallel batches, retrying `429` and `5xx`.
-5. Deletes the integration itself, but only with `--delete-integration` and
-   only if every flow was removed first.
+5. Clears the integration's `aliases` list, then deletes the integration
+   itself, but only with `--delete-integration` and only if every flow was
+   removed first.
+
+Step 5 clears aliases because the platform refuses to delete an integration
+that owns one, returning `integration <id> owns alias "<name>" pointing to
+connection <id>. Alias must be deleted before this resource can be deleted.`
+The Salesforce - NetSuite (Advanced) template registers a `netsuite_connection`
+alias on install, so every teardown hits this. The tool sends a JSON-patch
+that touches only `aliases`; a full `PUT` would discard platform-generated
+state such as `installSteps`.
 
 Typical use is the edit-install-test loop on a template: tear the install down
 with this, re-upload the template zip, and verify the fresh install.
